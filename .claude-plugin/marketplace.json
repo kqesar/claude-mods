@@ -1,0 +1,14 @@
+{
+  "name": "claude-mods",
+  "description": "Claude Code mods built on the function hooks API, no third-party dependency",
+  "owner": {
+    "name": "kqesar"
+  },
+  "plugins": [
+    {
+      "name": "checklist",
+      "source": "./checklist",
+      "description": "Live task checklist pane (/checklist) and a status line counter"
+    }
+  ]
+}

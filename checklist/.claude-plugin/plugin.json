@@ -1,0 +1,11 @@
+{
+  "name": "checklist",
+  "version": "0.1.0",
+  "description": "Live task checklist pane (/checklist) and a status line counter, fed by the TaskCreate/TaskUpdate tools",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "kqesar"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/kqesar/claude-mods"
+}
