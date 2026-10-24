@@ -9,6 +9,11 @@
       "name": "checklist",
       "source": "./checklist",
       "description": "Live task checklist pane (/checklist) and a status line counter"
+    },
+    {
+      "name": "update",
+      "source": "./update",
+      "description": "/update switches to the latest Claude Code and resumes the same session when nothing runs"
     }
   ]
 }
