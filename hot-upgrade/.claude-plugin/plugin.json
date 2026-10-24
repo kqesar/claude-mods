@@ -1,0 +1,11 @@
+{
+  "name": "hot-upgrade",
+  "version": "0.1.0",
+  "description": "/hot-upgrade installs the latest Claude Code and resumes the same session on it at the next safe point",
+  "author": {
+    "name": "kqesar"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/kqesar/claude-mods",
+  "types": "./types/index.d.ts"
+}

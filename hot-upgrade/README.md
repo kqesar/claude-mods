@@ -1,17 +1,17 @@
-# update
+# hot-upgrade
 
 Claude Code updates itself in the background, but the session you have open
 keeps running the old version until you quit. And quitting in the middle of
 work is exactly what you don't want to do.
 
-So: type `/upgrade-claude` and keep working. It installs the new version, waits for
+So: type `/hot-upgrade` and keep working. It installs the new version, waits for
 Claude to be done with whatever it is doing, then restarts on the same
 conversation. You lose two or three seconds, not your context.
 
 ```
-> /upgrade-claude
+> /hot-upgrade
 Claude Code 2.1.311 installed (running 2.1.310). Restarting once nothing
-runs: 1 agent running. `/upgrade-claude now` restarts regardless, `/upgrade-claude cancel`
+runs: 1 agent running. `/hot-upgrade now` restarts regardless, `/hot-upgrade cancel`
 keeps this version.
 
   ↻ 2.1.311 waits: 1 agent running
@@ -23,21 +23,21 @@ you what it is waiting for.
 
 | Command | What it does |
 | --- | --- |
-| `/upgrade-claude` | Install the latest version and switch to it at the next safe moment |
-| `/upgrade-claude setup` | Install the shell wrapper the restart goes through (once) |
-| `/upgrade-claude now` | Switch as soon as the current turn ends, even if a background task or a `/loop` gets cut |
-| `/upgrade-claude cancel` | Forget the pending switch; the new version starts with your next session |
+| `/hot-upgrade` | Install the latest version and switch to it at the next safe moment |
+| `/hot-upgrade setup` | Install the shell wrapper the restart goes through (once) |
+| `/hot-upgrade now` | Switch as soon as the current turn ends, even if a background task or a `/loop` gets cut |
+| `/hot-upgrade cancel` | Forget the pending switch; the new version starts with your next session |
 
 ## Setup
 
 Two steps, both from inside Claude Code:
 
 ```
-/plugin install update --marketplace kqesar/claude-mods
-/upgrade-claude setup
+/plugin install hot-upgrade --marketplace kqesar/claude-mods
+/hot-upgrade setup
 ```
 
-`/upgrade-claude setup` detects your shell and installs a small `claude` wrapper
+`/hot-upgrade setup` detects your shell and installs a small `claude` wrapper
 function:
 
 - **fish**: `~/.config/fish/functions/claude.fish`
@@ -61,7 +61,7 @@ cheap instead.
 The wrapper creates an empty temp file and hands its path to Claude Code in
 `CLAUDE_RELAUNCH_FILE`. When the mod decides it is safe, it writes the
 session id into that file and runs `/exit`. The wrapper sees a non-empty file
-and runs `claude --resume <id>`. It loops, so a second `/upgrade-claude` later works
+and runs `claude --resume <id>`. It loops, so a second `/hot-upgrade` later works
 the same way. When the file stays empty, the wrapper just returns Claude's
 exit code.
 
@@ -69,10 +69,10 @@ exit code.
 sequenceDiagram
     participant W as claude() shell function
     participant C as Claude Code (old)
-    participant M as update mod
+    participant M as hot-upgrade mod
     participant N as Claude Code (new)
     W->>C: CLAUDE_RELAUNCH_FILE=/tmp/claude-relaunch.X claude ...
-    C->>M: /upgrade-claude
+    C->>M: /hot-upgrade
     M->>M: claude update, then wait until nothing runs
     M->>W: write the session id into the file
     M->>C: /exit

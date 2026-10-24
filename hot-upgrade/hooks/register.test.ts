@@ -40,16 +40,16 @@ function engine(on: On, running: string, installed: string, agents: AgentStatus[
   return { written, commands, statuses }
 }
 
-test('/upgrade-claude is registered and answers like /update', async ($, on) => {
+test('/hot-upgrade is registered and answers like /update', async ($, on) => {
   const seen = engine(on, '2.1.310', '2.1.310')
   const registered: string[] = []
   on('command.register', (_, e) => (registered.push(e.name), { value: { command: e.name } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
 
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
-  const { text } = await $.command.run({ ...typed(), command: 'upgrade-claude' })
+  const { text } = await $.command.run({ ...typed(), command: 'hot-upgrade' })
 
-  expect(registered).toEqual(['upgrade-claude'])
+  expect(registered).toEqual(['hot-upgrade'])
   expect(text).toBe('Claude Code 2.1.310 is up to date.')
   expect(seen.commands).toEqual([])
 })

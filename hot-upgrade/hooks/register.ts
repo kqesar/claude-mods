@@ -5,9 +5,9 @@ import type { EngineInterface, Register } from 'claude-code'
 // a restart. This mod picks the moment (nothing running that a restart would
 // kill), records the session id for the shell wrapper and exits; the wrapper
 // resumes the same session on the new binary.
-const pending = atom({ plugin: 'update', key: 'pending' } as const, null)
-const isForced = atom({ plugin: 'update', key: 'isForced' } as const, false)
-const background = atom({ plugin: 'update', key: 'background' } as const, {
+const pending = atom({ plugin: 'hot-upgrade', key: 'pending' } as const, null)
+const isForced = atom({ plugin: 'hot-upgrade', key: 'isForced' } as const, false)
+const background = atom({ plugin: 'hot-upgrade', key: 'background' } as const, {
   tasks: 0,
   crons: 0,
 })
@@ -56,7 +56,7 @@ const RC_LINE =
 // Installs the shell wrapper the mod restarts through, for the user's shell.
 async function setup($: EngineInterface): Promise<string> {
   if ((await $.env.get('CLAUDE_RELAUNCH_FILE')) !== undefined) {
-    return 'The wrapper is already active: /upgrade-claude restarts on its own.'
+    return 'The wrapper is already active: /hot-upgrade restarts on its own.'
   }
   const home = await $.env.get('HOME')
   const shell = ((await $.env.get('SHELL')) ?? '').split('/').pop() ?? ''
@@ -65,7 +65,7 @@ async function setup($: EngineInterface): Promise<string> {
     return 'HOME is not set: install the wrapper by hand (see the README).'
   }
   const wrapper = (name: string) => $.fs.read(`${$.plugin.root}/wrapper/${name}`)
-  const next = 'Open a new terminal and start `claude` there: /upgrade-claude will then restart on its own.'
+  const next = 'Open a new terminal and start `claude` there: /hot-upgrade will then restart on its own.'
 
   if (shell === 'fish') {
     const target = `${home}/.config/fish/functions/claude.fish`
@@ -84,7 +84,7 @@ async function setup($: EngineInterface): Promise<string> {
     await $.fs.write(`${home}/.config/claude-mods/claude.sh`, await wrapper('claude.sh'))
 
     if (!current.includes(RC_LINE)) {
-      const block = `\n# Resume the Claude Code session after /upgrade-claude (kqesar/claude-mods)\n${RC_LINE}\n`
+      const block = `\n# Resume the Claude Code session after /hot-upgrade (kqesar/claude-mods)\n${RC_LINE}\n`
       await $.fs.write(rc, current + block)
     }
 
@@ -105,12 +105,12 @@ async function relaunch($: EngineInterface) {
   if (file === undefined || file === '') {
     const command = `claude --resume ${id}`
     await $.ui.copy({ text: command })
-    $.ui.toast(`update: ${version} is installed; restart with \`${command}\` (copied). /upgrade-claude setup makes it automatic`)
+    $.ui.toast(`hot-upgrade: ${version} is installed; restart with \`${command}\` (copied). /hot-upgrade setup makes it automatic`)
 
     return
   }
   await $.fs.write(file, id)
-  $.ui.toast(`update: restarting on ${version}`)
+  $.ui.toast(`hot-upgrade: restarting on ${version}`)
   await $.command.run({ command: 'exit' })
 }
 
@@ -137,7 +137,7 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
-      name: 'upgrade-claude',
+      name: 'hot-upgrade',
       description: 'Switch to the latest Claude Code and resume this session when nothing runs',
       argumentHint: '[setup | now | cancel]',
     })
@@ -147,7 +147,7 @@ export const register: Register = on => {
 
   // `/update` is a name Claude Code reserves: it cannot be registered, and the
   // typeahead completes it to another command, but typed in full it lands here.
-  for (const command of ['upgrade-claude', 'update']) {
+  for (const command of ['hot-upgrade', 'update']) {
     on('command.run', { command }, async ($, e) => {
       const arg = (e.args ?? '').trim()
 
@@ -185,7 +185,7 @@ export const register: Register = on => {
           text:
             `Claude Code ${installed} installed (running ${running}). ` +
             `Restarting once nothing runs: ${reasons.join(', ')}. ` +
-            '`/upgrade-claude now` restarts regardless, `/upgrade-claude cancel` keeps this version.',
+            '`/hot-upgrade now` restarts regardless, `/hot-upgrade cancel` keeps this version.',
         }
       }
       $.clock.after(GRACE_MS, () => void attempt($, isTurnRunning))
@@ -195,10 +195,10 @@ export const register: Register = on => {
         text: hasWrapper
           ? `Claude Code ${installed} installed (running ${running}): restarting on it.`
           : `Claude Code ${installed} installed (running ${running}). No wrapper to restart ` +
-            'through: the resume command goes to your clipboard. `/upgrade-claude setup` fixes that.',
+            'through: the resume command goes to your clipboard. `/hot-upgrade setup` fixes that.',
       }
     }).catch(($, e, next) =>
-      next.called ? next(e) : { text: `update: the command failed; nothing was changed.` },
+      next.called ? next(e) : { text: `hot-upgrade: the command failed; nothing was changed.` },
     )
   }
 

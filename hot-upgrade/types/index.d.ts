@@ -3,7 +3,7 @@ export type Background = { tasks: number; crons: number }
 
 declare module 'claude-code' {
   interface PluginState {
-    update: {
+    'hot-upgrade': {
       // The installed version waiting for a safe point to be switched to.
       pending: string | null
       isForced: boolean
