@@ -4,11 +4,11 @@ Small mods for [Claude Code](https://code.claude.com) that I use every day.
 They are plain plugins on its function hooks API: no dependency, nothing to
 build, one line to install.
 
-![The checklist pane, ticking off a plan](checklist/assets/pane.png)
+![The checklist pane: the plan ticking itself off, and the files it changed](checklist/assets/pane.png)
 
 | Mod | What it does |
 | --- | --- |
-| [checklist](checklist/README.md) | A live pane listing the session's tasks and a status line counter |
+| [checklist](checklist/README.md) | A live pane with the session's tasks and the files they changed, and a status line counter |
 | [hot-upgrade](hot-upgrade/README.md) | `/hot-upgrade` moves the session to the latest Claude Code without losing it |
 
 ## Install

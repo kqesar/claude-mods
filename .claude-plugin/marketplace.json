@@ -8,7 +8,7 @@
     {
       "name": "checklist",
       "source": "./checklist",
-      "description": "Live task checklist pane (/checklist) and a status line counter"
+      "description": "Live pane (/checklist) with the task list and the files they changed, plus a status line counter"
     },
     {
       "name": "hot-upgrade",

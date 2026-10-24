@@ -1,7 +1,7 @@
 {
   "name": "checklist",
-  "version": "0.1.0",
-  "description": "Live task checklist pane (/checklist) and a status line counter, fed by the TaskCreate/TaskUpdate tools",
+  "version": "0.2.0",
+  "description": "Live pane (/checklist) with the task list and the files the working tree changes, plus a status line counter",
   "types": "./types/index.d.ts",
   "author": {
     "name": "kqesar"
