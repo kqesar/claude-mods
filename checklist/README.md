@@ -1,17 +1,22 @@
 # checklist
 
 When Claude works through a plan, the plan scrolls away. Twenty tool calls
-later you are scrolling back up to figure out which step it is on. I wanted
-the list pinned next to the chat, ticking itself off as Claude goes. That's
-this mod.
+later you are scrolling back up to figure out which step it is on, and which
+files it has touched so far. I wanted both pinned next to the chat, updating
+as Claude goes. That's this mod.
 
-![The checklist pane: five tasks done and struck through, one in progress](assets/pane.png)
+![The checklist pane: four tasks done, one in progress, one to do, then the four files the working tree changes](assets/pane.png)
 
 What you get:
 
 - **A pane that stays beside the conversation** and updates live: ☐ to do,
   ▶ in progress (in bold, with what Claude is doing right now), ☑ done and
   struck through.
+- **The files Claude changed, under the plan**: each file the working tree
+  changes against `HEAD`, marked `M`, `A`, `D`, `R` or `?` (untracked), with
+  its lines added and removed. **Full diff** opens Claude Code's own diff
+  panel. Claude Code docks one pane at a time, so this keeps the plan and
+  the changes on screen together.
 - **A counter under the prompt** for when the pane is closed. It turns into
   `7/7 ✓` at the end.
 
@@ -51,6 +56,8 @@ itself as soon as the first task shows up.
 - Subagents keep their own lists; only the main conversation's tasks appear.
 - Models that use `TodoWrite` instead of the task tools are shown too, just
   without the ✕ (those lists have no task ids to delete by).
+- Outside a git repository the pane shows the plan alone. The first 30
+  changed files are listed, then a count of the rest.
 
 ## How it works
 
@@ -60,3 +67,8 @@ the session state and updates it from every `TaskCreate`, `TaskUpdate` and
 by the real list, which is how it catches up after a `/resume`. The ✕ calls
 `TaskUpdate` with `status: "deleted"` itself, so Claude's own list changes
 too, not just the pane.
+
+The changes come from `git status --porcelain` and `git diff --numstat HEAD`,
+run again after every tool that can write (`Edit`, `Write`, `NotebookEdit`,
+`Bash`), at the end of each turn and when the session starts. The pane only
+redraws when that list actually moved.

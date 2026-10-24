@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { ElementTable, EngineInterface, Register, RenderSurface } from 'claude-code'
 
-import type { Task, TaskStatus } from '../types'
+import type { Change, Task, TaskStatus } from '../types'
 
 const PANE = 'checklist'
 const TITLE = 'Plan'
@@ -12,6 +12,18 @@ const tasks = atom({ plugin: 'checklist', key: 'tasks' } as const, [], {
 })
 // The task whose ✕ was pressed, waiting for its confirmation.
 const armed = atom({ plugin: 'checklist', key: 'armed' } as const, null)
+// What the working tree changes against HEAD, read again after every tool
+// that can write: the diff panel's summary, beside the plan in one pane.
+const changes = atom({ plugin: 'checklist', key: 'changes' } as const, null, {
+  shape: 'changes-1',
+})
+
+// The tools after which the working tree may have moved.
+const WRITERS = new Set(['Edit', 'Write', 'NotebookEdit', 'Bash'])
+// Rows of the Changes section before the rest is counted.
+const MAX_CHANGES = 30
+
+const KIND: Record<string, Change['kind']> = { M: 'M', A: 'A', D: 'D', R: 'R', C: 'A', T: 'M', U: 'M' }
 
 const MARK: Record<TaskStatus, string> = {
   pending: '☐',
@@ -112,6 +124,126 @@ async function drawChecklist(
   )
 }
 
+// `git status --porcelain=v1 -z` and `git diff --numstat -z HEAD`, joined: one
+// row per path, its kind, and its line counts when git counts them.
+function parseChanges(status: string, numstat: string): Change[] {
+  const counts = new Map<string, { added?: number; removed?: number }>()
+  const stat = numstat.split('\0')
+
+  for (let i = 0; i < stat.length; i++) {
+    const [added, removed, path] = (stat[i] ?? '').split('\t')
+
+    if (path === undefined) {
+      continue
+    }
+    // A rename's record is "a\tr\t" then the old and the new path
+    const name = path === '' ? stat[(i += 2)] : path
+
+    if (name !== undefined) {
+      counts.set(name, {
+        added: added === '-' ? undefined : Number(added),
+        removed: removed === '-' ? undefined : Number(removed),
+      })
+    }
+  }
+
+  const rows: Change[] = []
+  const entries = status.split('\0')
+
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i] ?? ''
+
+    if (entry.length < 4) {
+      continue
+    }
+    const code = entry.slice(0, 2)
+    const path = entry.slice(3)
+    // A rename or copy is followed by its old path
+    if (code.includes('R') || code.includes('C')) {
+      i += 1
+    }
+    const kind = code === '??' ? '?' : (KIND[code.trim().charAt(0)] ?? 'M')
+    rows.push({ path, kind, ...counts.get(path) })
+  }
+
+  return rows.sort((a, b) => a.path.localeCompare(b.path))
+}
+
+// Reads the working tree's changes; null outside a repository. Writes only
+// when they moved, so a read that finds nothing new redraws nothing.
+async function refreshChanges($: EngineInterface) {
+  const status = await $.process.run(['git', 'status', '--porcelain=v1', '-z'])
+  let next: Change[] | null = null
+
+  if (status.exitCode === 0) {
+    // A repository with no commit yet has no HEAD to diff against
+    const numstat = await $.process.run(['git', 'diff', '--numstat', '-z', 'HEAD'])
+    next = parseChanges(status.stdout, numstat.exitCode === 0 ? numstat.stdout : '')
+  }
+
+  const before = await read($, changes)
+
+  if (JSON.stringify(before) !== JSON.stringify(next)) {
+    await update($, changes, () => next)
+  }
+}
+
+// "+40 -1"; a side with no line is left out ("+120", "-1"), as git's stat does
+function countsOf({ added, removed }: Change): string {
+  const parts = [added ? `+${added}` : '', removed ? `-${removed}` : '']
+
+  return parts.filter(Boolean).join(' ')
+}
+
+async function drawChanges(
+  $: EngineInterface,
+  { Box, Text, Button }: Pick<ElementTable, 'Box' | 'Text' | 'Button'>,
+  bodyColumns: number,
+) {
+  const list = await read($, changes)
+
+  if (list === null) {
+    return null
+  }
+
+  const shown = list.slice(0, MAX_CHANGES)
+  // The counts' column, as wide as the widest, the path in what is left
+  const countWidth = Math.max(0, ...shown.map(change => countsOf(change).length))
+  const pathWidth = Math.max(8, bodyColumns - countWidth - 3)
+
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      <Box flexDirection="row" gap={1}>
+        <Text bold>
+          Changes {list.length === 0 ? '— none' : `— ${list.length} file${list.length === 1 ? '' : 's'}`}
+        </Text>
+        {list.length > 0 && (
+          <Button
+            key="full-diff"
+            plain
+            label="Full diff"
+            onPress={() => $.command.run({ command: 'diff' })}
+          />
+        )}
+      </Box>
+      {shown.map(change => (
+        <Box key={`change-${change.path}`} flexDirection="row" gap={1}>
+          <Text color={change.kind === 'D' ? 'red' : change.kind === 'M' ? undefined : 'green'}>
+            {change.kind}
+          </Text>
+          <Box width={pathWidth}>
+            <Text wrap="truncate-start">{change.path}</Text>
+          </Box>
+          <Box width={countWidth} justifyContent="flex-end">
+            <Text dimColor>{countsOf(change)}</Text>
+          </Box>
+        </Box>
+      ))}
+      {list.length > shown.length && <Text dimColor>+{list.length - shown.length} more</Text>}
+    </Box>
+  )
+}
+
 // Applies a change to the mirror, then refreshes the status line and opens
 // the pane unasked on the first task where a surface docks it as a sidebar.
 async function change(
@@ -139,6 +271,27 @@ export const register: Register = on => {
       description: 'Show the current task list in a live pane',
     })
     $.ui.status(statusOf(await read($, tasks)))
+    void refreshChanges($)
+
+    return next(e)
+  })
+
+  // Any tool that can write the tree, the main conversation's or an agent's
+  on('tool.call', async ($, e, next) => {
+    const ran = await next(e)
+
+    // Awaited: the pane is current by the time the tool's result is read
+    if (WRITERS.has(e.tool)) {
+      await refreshChanges($)
+    }
+
+    return ran
+  })
+
+  // A change made outside a tool call (the person's own editor) shows by the
+  // next turn's end
+  on('turn.complete', async ($, e, next) => {
+    void refreshChanges($)
 
     return next(e)
   })
@@ -279,11 +432,18 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const ui = $.ui.resolve(e)
+    const plan =
+      (await read($, tasks)).length === 0 ? (
+        <ui.Text dimColor>No task yet.</ui.Text>
+      ) : (
+        await drawChecklist($, ui)
+      )
 
-    if ((await read($, tasks)).length === 0) {
-      return <ui.Text dimColor>No task yet.</ui.Text>
-    }
-
-    return drawChecklist($, ui)
+    return (
+      <ui.Box flexDirection="column">
+        {plan}
+        {await drawChanges($, ui, e.props.bodyColumns)}
+      </ui.Box>
+    )
   })
 }
