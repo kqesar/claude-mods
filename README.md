@@ -20,3 +20,7 @@ From a shell:
 ```
 claude plugin install checklist --marketplace kqesar/claude-mods
 ```
+
+The checklist mod also needs `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` on models
+that do not ship the task tools by default: see its
+[setup](checklist/README.md#setup).
