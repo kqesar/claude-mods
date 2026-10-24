@@ -1,12 +1,15 @@
 # claude-mods
 
-Mods for [Claude Code](https://code.claude.com): plugins built on its function
-hooks API, with no third-party dependency.
+Small mods for [Claude Code](https://code.claude.com) that I use every day.
+They are plain plugins on its function hooks API: no dependency, nothing to
+build, one line to install.
+
+![The checklist pane, ticking off a plan](checklist/assets/pane.png)
 
 | Mod | What it does |
 | --- | --- |
 | [checklist](checklist/README.md) | A live pane listing the session's tasks and a status line counter |
-| [update](update/README.md) | `/update` moves the session to the latest Claude Code without losing it |
+| [update](update/README.md) | `/upgrade-claude` moves the session to the latest Claude Code without losing it |
 
 ## Install
 
