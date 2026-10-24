@@ -56,7 +56,7 @@ const RC_LINE =
 // Installs the shell wrapper the mod restarts through, for the user's shell.
 async function setup($: EngineInterface): Promise<string> {
   if ((await $.env.get('CLAUDE_RELAUNCH_FILE')) !== undefined) {
-    return 'The wrapper is already active: /update restarts on its own.'
+    return 'The wrapper is already active: /upgrade-claude restarts on its own.'
   }
   const home = await $.env.get('HOME')
   const shell = ((await $.env.get('SHELL')) ?? '').split('/').pop() ?? ''
@@ -65,7 +65,7 @@ async function setup($: EngineInterface): Promise<string> {
     return 'HOME is not set: install the wrapper by hand (see the README).'
   }
   const wrapper = (name: string) => $.fs.read(`${$.plugin.root}/wrapper/${name}`)
-  const next = 'Open a new terminal and start `claude` there: /update will then restart on its own.'
+  const next = 'Open a new terminal and start `claude` there: /upgrade-claude will then restart on its own.'
 
   if (shell === 'fish') {
     const target = `${home}/.config/fish/functions/claude.fish`
@@ -84,7 +84,7 @@ async function setup($: EngineInterface): Promise<string> {
     await $.fs.write(`${home}/.config/claude-mods/claude.sh`, await wrapper('claude.sh'))
 
     if (!current.includes(RC_LINE)) {
-      const block = `\n# Resume the Claude Code session after /update (kqesar/claude-mods)\n${RC_LINE}\n`
+      const block = `\n# Resume the Claude Code session after /upgrade-claude (kqesar/claude-mods)\n${RC_LINE}\n`
       await $.fs.write(rc, current + block)
     }
 
@@ -105,7 +105,7 @@ async function relaunch($: EngineInterface) {
   if (file === undefined || file === '') {
     const command = `claude --resume ${id}`
     await $.ui.copy({ text: command })
-    $.ui.toast(`update: ${version} is installed; restart with \`${command}\` (copied). /update setup makes it automatic`)
+    $.ui.toast(`update: ${version} is installed; restart with \`${command}\` (copied). /upgrade-claude setup makes it automatic`)
 
     return
   }
@@ -135,69 +135,72 @@ async function attempt($: EngineInterface, isTurnRunning: boolean): Promise<stri
 export const register: Register = on => {
   let isTurnRunning = false
 
-  // `/update` ships with Claude Code, so it cannot be registered: these hooks
-  // describe and answer it in place of the engine's own.
-  on('command.describe', { command: 'update' }, ($, e, next) =>
-    next({
-      ...e,
+  on('session.start', async ($, e, next) => {
+    await $.command.register({
+      name: 'upgrade-claude',
       description: 'Switch to the latest Claude Code and resume this session when nothing runs',
       argumentHint: '[setup | now | cancel]',
-      isHidden: false,
-    }),
-  )
+    })
 
-  on('command.run', { command: 'update' }, async ($, e) => {
-    const arg = (e.args ?? '').trim()
+    return next(e)
+  })
 
-    if (arg === 'setup') {
-      return { text: await setup($) }
-    }
-    if (arg === 'cancel') {
-      await update($, pending, () => null)
-      await update($, isForced, () => false)
-      $.ui.status(undefined)
+  // `/update` is a name Claude Code reserves: it cannot be registered, and the
+  // typeahead completes it to another command, but typed in full it lands here.
+  for (const command of ['upgrade-claude', 'update']) {
+    on('command.run', { command }, async ($, e) => {
+      const arg = (e.args ?? '').trim()
 
-      return { text: 'Update switch cancelled; the new version starts with the next session.' }
-    }
-    const running = (await $.session.version()).version
-    const updated = await $.process.run(['claude', 'update'], { timeoutMs: 600_000 })
+      if (arg === 'setup') {
+        return { text: await setup($) }
+      }
+      if (arg === 'cancel') {
+        await update($, pending, () => null)
+        await update($, isForced, () => false)
+        $.ui.status(undefined)
 
-    if (updated.exitCode !== 0) {
-      const detail = (updated.stderr || updated.stdout).trim().split('\n').slice(-3).join('\n')
+        return { text: 'Update switch cancelled; the new version starts with the next session.' }
+      }
+      const running = (await $.session.version()).version
+      const updated = await $.process.run(['claude', 'update'], { timeoutMs: 600_000 })
 
-      return { text: `claude update failed (exit ${updated.exitCode}):\n${detail}` }
-    }
-    const installed = await installedVersion($)
+      if (updated.exitCode !== 0) {
+        const detail = (updated.stderr || updated.stdout).trim().split('\n').slice(-3).join('\n')
 
-    if (installed === undefined || installed === running) {
-      return { text: `Claude Code ${running} is up to date.` }
-    }
-    await update($, pending, () => installed)
-    await update($, isForced, () => arg === 'now')
-    const reasons = await blockersOf($, false)
+        return { text: `claude update failed (exit ${updated.exitCode}):\n${detail}` }
+      }
+      const installed = await installedVersion($)
 
-    if (reasons.length > 0) {
-      $.ui.status(`↻ ${installed} waits: ${reasons.join(', ')}`)
+      if (installed === undefined || installed === running) {
+        return { text: `Claude Code ${running} is up to date.` }
+      }
+      await update($, pending, () => installed)
+      await update($, isForced, () => arg === 'now')
+      const reasons = await blockersOf($, false)
+
+      if (reasons.length > 0) {
+        $.ui.status(`↻ ${installed} waits: ${reasons.join(', ')}`)
+
+        return {
+          text:
+            `Claude Code ${installed} installed (running ${running}). ` +
+            `Restarting once nothing runs: ${reasons.join(', ')}. ` +
+            '`/upgrade-claude now` restarts regardless, `/upgrade-claude cancel` keeps this version.',
+        }
+      }
+      $.clock.after(GRACE_MS, () => void attempt($, isTurnRunning))
+      const hasWrapper = (await $.env.get('CLAUDE_RELAUNCH_FILE')) !== undefined
 
       return {
-        text:
-          `Claude Code ${installed} installed (running ${running}). ` +
-          `Restarting once nothing runs: ${reasons.join(', ')}. ` +
-          '`/update now` restarts regardless, `/update cancel` keeps this version.',
+        text: hasWrapper
+          ? `Claude Code ${installed} installed (running ${running}): restarting on it.`
+          : `Claude Code ${installed} installed (running ${running}). No wrapper to restart ` +
+            'through: the resume command goes to your clipboard. `/upgrade-claude setup` fixes that.',
       }
-    }
-    $.clock.after(GRACE_MS, () => void attempt($, isTurnRunning))
-    const hasWrapper = (await $.env.get('CLAUDE_RELAUNCH_FILE')) !== undefined
-
-    return {
-      text: hasWrapper
-        ? `Claude Code ${installed} installed (running ${running}): restarting on it.`
-        : `Claude Code ${installed} installed (running ${running}). No wrapper to restart ` +
-          'through: the resume command goes to your clipboard. `/update setup` fixes that.',
-    }
-  }).catch(($, e, next) =>
-    next.called ? next(e) : { text: `update: the command failed; nothing was changed.` },
-  )
+    }).catch(($, e, next) =>
+      next.called ? next(e) : { text: `update: the command failed; nothing was changed.` },
+    )
+  }
 
   on('turn.start', ($, e, next) => {
     if (e.agentId === undefined) {
