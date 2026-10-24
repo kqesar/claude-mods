@@ -81,7 +81,13 @@ test('a running agent holds the restart until cancelled', async ($, on) => {
 test('setup installs the fish wrapper from the mod folder', async ($, on) => {
   mock.env(on, { HOME: '/home/u', SHELL: '/usr/bin/fish' })
   const seen = engine(on, '2.1.310', '2.1.310')
-  on('fs.read', (_, e) => ({ value: `wrapper from ${e.path}` }))
+  on('fs.read', (_, e) => {
+    if (!e.path.includes('/wrapper/')) {
+      throw new Error('ENOENT')
+    }
+
+    return { value: `wrapper from ${e.path}` }
+  })
 
   const { text } = await $.command.run(typed('setup'))
 
@@ -114,4 +120,15 @@ test('setup sources the bash wrapper once', async ($, on) => {
   expect(files.get('/home/u/.config/claude-mods/claude.sh')).toBe('wrapper')
   // The source line names the script twice (test, then source), and only once.
   expect(files.get('/home/u/.bashrc')?.match(/claude-mods\/claude\.sh/g)?.length).toBe(2)
+})
+
+test('setup leaves an existing fish function alone', async ($, on) => {
+  mock.env(on, { HOME: '/home/u', SHELL: '/usr/bin/fish' })
+  const seen = engine(on, '2.1.310', '2.1.310')
+  on('fs.read', () => ({ value: 'my own claude function' }))
+
+  const { text } = await $.command.run(typed('setup'))
+
+  expect(text).toContain('already exists')
+  expect(seen.written).toEqual([])
 })

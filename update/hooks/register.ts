@@ -68,7 +68,13 @@ async function setup($: EngineInterface): Promise<string> {
   const next = 'Open a new terminal and start `claude` there: /update will then restart on its own.'
 
   if (shell === 'fish') {
-    await $.fs.write(`${home}/.config/fish/functions/claude.fish`, await wrapper('claude.fish'))
+    const target = `${home}/.config/fish/functions/claude.fish`
+    const isThere = await $.fs.read(target).then(() => true, () => false)
+
+    if (isThere) {
+      return `~/.config/fish/functions/claude.fish already exists; left as is. ${next}`
+    }
+    await $.fs.write(target, await wrapper('claude.fish'))
 
     return `Wrapper installed in ~/.config/fish/functions/claude.fish. ${next}`
   }
@@ -181,8 +187,14 @@ export const register: Register = on => {
       }
     }
     $.clock.after(GRACE_MS, () => void attempt($, isTurnRunning))
+    const hasWrapper = (await $.env.get('CLAUDE_RELAUNCH_FILE')) !== undefined
 
-    return { text: `Claude Code ${installed} installed (running ${running}): restarting on it.` }
+    return {
+      text: hasWrapper
+        ? `Claude Code ${installed} installed (running ${running}): restarting on it.`
+        : `Claude Code ${installed} installed (running ${running}). No wrapper to restart ` +
+          'through: the resume command goes to your clipboard. `/update setup` fixes that.',
+    }
   }).catch(($, e, next) =>
     next.called ? next(e) : { text: `update: the command failed; nothing was changed.` },
   )
